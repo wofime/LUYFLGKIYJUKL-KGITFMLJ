@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Super Writer - All-in-One</title>
+    <!-- Bibliothèque P2P -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        /* --- CSS GLOBAL & VARIABLES --- */
+        :root {
+            --bg-body: #121212; --bg-sidebar: #1e1e1e; --bg-card: #252525; --bg-input: #2d2d2d;
+            --bg-paper: #1e1e1e; --text-main: #e0e0e0; --text-muted: #a0a0a0; --accent: #bb86fc;
+            --border: #333333; --font-ui: 'Segoe UI', sans-serif; --font-write: 'Georgia', serif;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: var(--font-ui); background-color: var(--bg-body); color: var(--text-main); height: 100vh; display: flex; overflow: hidden; }
+
+        /* --- BOUTON MODE TOGGLE --- */
+        #mode-toggle-btn {
+            position: fixed; top: 15px; right: 15px; z-index: 9999;
+            background: var(--accent); color: #000; border: none;
+            padding: 10px 15px; border-radius: 50px; font-weight: bold; cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5); font-size: 0.9rem;
+            transition: transform 0.2s;
+        }
+        #mode-toggle-btn:active { transform: scale(0.95); }
+
+        /* --- INTERFACE PC (DASHBOARD) --- */
+        #pc-interface { width: 100%; height: 100%; display: flex; }
+        
+        .sidebar { width: 260px; background-color: var(--bg-sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 20px; flex-shrink: 0; }
+        .app-title { font-size: 1.2rem; font-weight: bold; color: var(--accent); margin-bottom: 20px; text-transform: uppercase; letter-spacing: 2px; text-align: center; }
+        
+        .p2p-box { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid var(--border); text-align: center; }
+        .p2p-label { font-size: 0.7rem; color: var(--text-muted); margin-bottom: 5px; display: block; text-transform: uppercase; }
+        .p2p-id { font-family: monospace; font-size: 1.1rem; color: var(--accent); word-break: break-all; user-select: all; cursor: pointer; }
+        .p2p-status { font-size: 0.7rem; margin-top: 5px; color: #4caf50; display: none; }
+
+        .nav-btn { background: none; border: none; color: var(--text-muted); padding: 15px; text-align: left; cursor: pointer; font-size: 1rem; border-radius: 8px; margin-bottom: 5px; transition: all 0.3s; font-family: var(--font-ui); }
+        .nav-btn:hover { background-color: rgba(187, 134, 252, 0.1); color: var(--text-main); }
+        .nav-btn.active { background-color: var(--accent); color: #121212; font-weight: bold; }
+
+        .main-content { flex-grow: 1; padding: 40px; overflow-y: auto; position: relative; }
+        .section { display: none; animation: fadeIn 0.4s ease-in-out; max-width: 1000px; margin: 0 auto; }
+        .section.active-section { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        h2 { font-size: 2rem; margin-bottom: 20px; border-bottom: 2px solid var(--accent); padding-bottom: 10px; display: inline-block; }
+        .form-group { margin-bottom: 25px; }
+        label { display: block; margin-bottom: 8px; color: var(--text-muted); font-size: 0.9rem; }
+        
+        input[type="text"], textarea { width: 100%; background-color: var(--bg-input); border: 1px solid var(--border); color: var(--text-main); padding: 12px; border-radius: 6px; transition: border-color 0.3s; font-family: var(--font-ui); font-size: 1rem; }
+        textarea { resize: vertical; min-height: 150px; line-height: 1.6; }
+        input:focus, textarea:focus { outline: none; border-color: var(--accent); }
+
+        /* Editor PC */
+        .writing-container { max-width: 800px; margin: 0 auto; display: flex; flex-direction: column; height: 100%; }
+        .chapter-input { font-size: 1.5rem; font-weight: bold; background: transparent; border: none; color: var(--text-main); padding: 0; margin-bottom: 10px; border-bottom: 1px solid var(--border); width: 100%; }
+        .editor-paper { background-color: var(--bg-paper); border: 1px solid var(--border); border-radius: 4px; padding: 40px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); flex-grow: 1; min-height: 70vh; }
+        .story-textarea { width: 100%; height: 100%; min-height: 60vh; background: transparent; border: none; color: #dcdcdc; font-family: var(--font-write); font-size: 1.15rem; line-height: 1.8; resize: none; }
+        .story-textarea:focus { outline: none; }
+        .stats-bar { text-align: right; color: var(--text-muted); font-size: 0.9rem; margin-top: 10px; }
+
+        /* --- INTERFACE TÉLÉPHONE (CLAVIER) --- */
+        #phone-interface { 
+            display: none; width: 100%; height: 100%; flex-direction: column; 
+            background-color: var(--bg-body); z-index: 10000; position: fixed; top: 0; left: 0;
+        }
+        .phone-header { padding: 15px; background: #1e1e1e; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; }
+        .phone-status { font-size: 0.8rem; color: #4caf50; display: none; }
+        
+        .phone-connect-panel { padding: 20px; background: #252525; display: flex; gap: 10px; align-items: center; }
+        .phone-connect-panel input { background: #333; border: 1px solid #444; color: white; }
+        .phone-connect-panel button { background: var(--accent); border: none; padding: 10px 20px; border-radius: 5px; color: black; font-weight: bold; cursor: pointer; }
+
+        .phone-editor { flex-grow: 1; padding: 10px; display: none; flex-direction: column; }
+        .phone-editor textarea { 
+            width: 100%; height: 100%; background: transparent; border: none; 
+            color: var(--text-main); font-size: 1.2rem; line-height: 1.6; font-family: var(--font-write);
+            resize: none; outline: none; padding: 10px;
+        }
+
+        /* Utilitaires */
+        .hidden { display: none !important; }
+
+        @media (max-width: 768px) {
+            #pc-interface .sidebar { display: none; } /* Cache sidebar sur mobile par défaut */
+            #pc-interface .main-content { padding: 20px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- BOUTON TOGGLE MODE -->
+    <button id="mode-toggle-btn" onclick="toggleMode()">📱 Mode Clavier</button>
+
+    <!-- === INTERFACE PC (DASHBOARD) === -->
+    <div id="pc-interface">
+        <nav class="sidebar">
+            <div class="app-title">LN Writer</div>
+            <div class="p2p-box">
+                <span class="p2p-label">ID PC (Pour le téléphone)</span>
+                <div id="pc-peer-id" class="p2p-id">Génération...</div>
+                <div id="pc-connection-status" class="p2p-status">📱 Connecté !</div>
+            </div>
+
+            <button class="nav-btn active" onclick="showSection('pitch')">Pitch & Concept</button>
+            <button class="nav-btn" onclick="showSection('world')">World-Building</button>
+            <button class="nav-btn" onclick="showSection('characters')">Personnages</button>
+            <button class="nav-btn" onclick="showSection('arcs')">Arcs Narratifs</button>
+            <button class="nav-btn" onclick="showSection('writing')">Rédaction</button>
+            <button class="nav-btn" onclick="showSection('notes')">Notes</button>
+        </nav>
+
+        <main class="main-content">
+            <!-- Sections (Simplifiées pour la lisibilité du code) -->
+            <section id="pitch" class="section active-section">
+                <h2>Pitch & Concept</h2>
+                <div class="form-group"><label>Titre</label><input type="text"></div>
+                <div class="form-group"><label>Synopsis</label><textarea></textarea></div>
+            </section>
+            
+            <section id="world" class="section"><h2>World-Building</h2><div class="form-group"><label>Géographie</label><textarea></textarea></div></section>
+            
+            <section id="characters" class="section"><h2>Personnages</h2><div class="form-group"><label>Liste</label><textarea placeholder="Héros, Méchants..."></textarea></div></section>
+            
+            <section id="arcs" class="section"><h2>Arcs Narratifs</h2><div class="form-group"><label>Début</label><textarea></textarea></div></section>
+
+            <section id="writing" class="section">
+                <div class="writing-container">
+                    <div class="chapter-meta">
+                        <input type="text" class="chapter-input" placeholder="Titre du Chapitre">
+                    </div>
+                    <div class="editor-paper">
+                        <!-- C'est la zone synchronisée -->
+                        <textarea id="pc-story-editor" class="story-textarea" placeholder="Commencez à écrire ici..."></textarea>
+                    </div>
+                    <div class="stats-bar">Mots : <span id="word-count">0</span></div>
+                </div>
+            </section>
+            
+            <section id="notes" class="section"><h2>Notes</h2><textarea style="height: 400px;"></textarea></section>
+        </main>
+    </div>
+
+    <!-- === INTERFACE TÉLÉPHONE (CLAVIER) === -->
+    <div id="phone-interface">
+        <div class="phone-header">
+            <h3>Clavier Distant</h3>
+            <div id="phone-status" class="phone-status">Connecté ✅</div>
+        </div>
+
+        <div id="phone-connect-panel" class="phone-connect-panel">
+            <input type="text" id="host-id-input" placeholder="Colle l'ID du PC ici...">
+            <button onclick="connectToPC()">Connecter</button>
+        </div>
+
+        <div id="phone-editor" class="phone-editor">
+            <textarea id="phone-input" placeholder="Écrivez ici..."></textarea>
+        </div>
+    </div>
+
+    <script>
+        // --- VARIABLES GLOBALES ---
+        let peer = null;
+        let conn = null;
+        let isPhoneMode = false;
+
+        // --- GESTION DES MODES ---
+        function toggleMode() {
+            isPhoneMode = !isPhoneMode;
+            const pcUI = document.getElementById('pc-interface');
+            const phoneUI = document.getElementById('phone-interface');
+            const btn = document.getElementById('mode-toggle-btn');
+
+            if (isPhoneMode) {
+                // Passer en mode Téléphone
+                pcUI.classList.add('hidden');
+                phoneUI.style.display = 'flex';
+                btn.textContent = '🖥️ Mode PC';
+                btn.style.background = '#4caf50'; // Vert pour retour
+                initPeerAsClient(); // Initialiser comme Client
+            } else {
+                // Revenir en mode PC
+                phoneUI.style.display = 'none';
+                pcUI.classList.remove('hidden');
+                btn.textContent = '📱 Mode Clavier';
+                btn.style.background = 'var(--accent)';
+                initPeerAsHost(); // Initialiser comme Hôte
+            }
+        }
+
+        // --- PEERJS LOGIC (HÔTE / PC) ---
+        function initPeerAsHost() {
+            if (peer) peer.destroy();
+            
+            peer = new Peer();
+            const idDisplay = document.getElementById('pc-peer-id');
+            const statusDisplay = document.getElementById('pc-connection-status');
+            const editor = document.getElementById('pc-story-editor');
+
+            peer.on('open', (id) => {
+                idDisplay.textContent = id;
+            });
+
+            // Le téléphone se connecte au PC
+            peer.on('connection', (connection) => {
+                conn = connection;
+                statusDisplay.style.display = 'block';
+                alert("Téléphone connecté !");
+
+                // Réception données du téléphone -> Mise à jour PC
+                conn.on('data', (data) => {
+                    if (data.type === 'text_update' && editor.value !== data.content) {
+                        editor.value = data.content;
+                        updateWordCount();
+                    }
+                });
+
+                conn.on('close', () => {
+                    statusDisplay.style.display = 'none';
+                    conn = null;
+                });
+            });
+
+            // Envoi données PC -> Téléphone
+            if(editor) {
+                editor.removeEventListener('input', handlePCTyping); // Éviter doublons
+                editor.addEventListener('input', handlePCTyping);
+            }
+        }
+
+        function handlePCTyping() {
+            const editor = document.getElementById('pc-story-editor');
+            if (conn && conn.open) {
+                conn.send({ type: 'text_update', content: editor.value });
+            }
+        }
+
+        // --- PEERJS LOGIC (CLIENT / TÉLÉPHONE) ---
+        function initPeerAsClient() {
+            if (peer) peer.destroy();
+            peer = new Peer(); // Le client a aussi un ID, mais on s'en sert juste pour connecter
+        }
+
+        function connectToPC() {
+            const hostId = document.getElementById('host-id-input').value.trim();
+            if (!hostId) return alert("Entre l'ID du PC !");
+
+            conn = peer.connect(hostId);
+
+            conn.on('open', () => {
+                document.getElementById('phone-connect-panel').classList.add('hidden');
+                document.getElementById('phone-editor').style.display = 'flex';
+                document.getElementById('phone-status').style.display = 'block';
+                
+                // Focus auto pour faire venir le clavier
+                document.getElementById('phone-input').focus();
+            });
+
+            // Réception données PC -> Mise à jour Téléphone
+            conn.on('data', (data) => {
+                const phoneInput = document.getElementById('phone-input');
+                if (data.type === 'text_update' && phoneInput.value !== data.content) {
+                    // Gestion curseur
+                    const start = phoneInput.selectionStart;
+                    phoneInput.value = data.content;
+                    phoneInput.setSelectionRange(start, start);
+                }
+            });
+        }
+
+        // Envoi données Téléphone -> PC
+        document.getElementById('phone-input').addEventListener('input', (e) => {
+            if (conn && conn.open) {
+                conn.send({ type: 'text_update', content: e.target.value });
+            }
+        });
+
+        // --- FONCTIONS COURANTES (UI) ---
+        function showSection(id) {
+            document.querySelectorAll('.section').forEach(el => el.classList.remove('active-section'));
+            document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+            
+            document.getElementById(id).classList.add('active-section');
+            // Trouver le bouton correspondant (approximatif)
+            event.target.classList.add('active');
+        }
+
+        function updateWordCount() {
+            const editor = document.getElementById('pc-story-editor');
+            const counter = document.getElementById('word-count');
+            if(editor && counter) {
+                const text = editor.value.trim();
+                counter.textContent = text === '' ? 0 : text.split(/\s+/).length;
+            }
+        }
+
+        // --- INITIALISATION AU DÉMARRAGE ---
+        window.addEventListener('DOMContentLoaded', () => {
+            // Par défaut, on démarre en mode PC
+            initPeerAsHost();
+            
+            // Listeners pour le compteur de mots (PC)
+            const editor = document.getElementById('pc-story-editor');
+            if(editor) editor.addEventListener('input', updateWordCount);
+        });
+
+    </script>
+</body>
+</html>
